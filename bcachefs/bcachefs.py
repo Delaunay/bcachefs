@@ -108,6 +108,7 @@ class BCacheFS:
         else:
             parts = [p for p in path.split('/') if p]
             dirent = self._dirent if not path.startswith("/") else ROOT_DIRENT
+            
             while parts:
                 dirent = self._inodes_tree.get((dirent.inode, parts.pop(0)),
                                                None)
@@ -130,10 +131,13 @@ class BCacheFS:
     def read_file(self, inode: [str, int]) -> memoryview:
         if isinstance(inode, str):
             inode = self.find_dirent(inode).inode
+
         extents = self._extents_map[inode]
+
         file_size = 0
         for extent in extents:
             file_size += extent.size
+
         _bytes = np.empty(file_size, dtype="<u1")
         for extent in extents:
             self._file.seek(extent.offset)
