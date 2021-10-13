@@ -768,6 +768,7 @@ int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter);
 const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this, Bcachefs_iterator *iter);
+const void * Bcachefs_iter_bset_end(Bcachefs_iterator *iter);
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter);
 Bcachefs_dirent Bcachefs_iter_make_dirent(const Bcachefs *this, Bcachefs_iterator *iter);
 Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter);

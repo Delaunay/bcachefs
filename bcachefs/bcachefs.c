@@ -4,6 +4,31 @@
 
 #include "bcachefs.h"
 
+
+
+const char* depth(int d) {
+    if (d >= 255){
+        return "";
+    }
+    static char buffer[255];
+    for (int i = 0; i < 255; i++) {
+        buffer[i] = ':';
+        if (i % 2 == 0) {
+            buffer[i] = '|';
+        }
+    }
+    buffer[d] = '\0';
+    return buffer;
+}
+
+int _depth = 0;
+
+#define LOG(fmt, ...) printf("%s:%d " fmt "\n", __FUNCTION__, __LINE__, __VA_ARGS__)
+#define TRACE(fmt, ...) printf("%30s:%4d %s+-> " fmt "\n", __FUNCTION__, __LINE__, depth(_depth), __VA_ARGS__)
+#define DEBUG(...) TRACE(__VA_ARGS__)
+
+
+
 // Our data structure structs are really just header of contiguous lists.  Most
 // of the time, the header always start with the size of full list in bytes
 //
@@ -38,25 +63,24 @@
 //
 // TODO: duplicate with benz_uintXX_as_uint64
 uint64_t read_u64s(const void *c, struct u64s_spec u64s_spec) {
-    uint64_t u64s = 0;
     switch (u64s_spec.size)
     {
     case sizeof(uint8_t):
-        u64s = *((const uint8_t*)c);
+        return *((const uint8_t*)c);
         break;
     case sizeof(uint16_t):
-        u64s = *((const uint16_t*)c);
+        return *((const uint16_t*)c);
         break;
     case sizeof(uint32_t):
-        u64s = *((const uint32_t*)c);
+        return *((const uint32_t*)c);
         break;
     case sizeof(uint64_t):
-        u64s = *((const uint64_t*)c);
+        return *((const uint64_t*)c);
         break;
     default:
-        u64s = 0;
+        return 0;
     }
-    return u64s;
+    return 0;
 }
 
 // Gets next element, reads the size of the current element and jump to the
@@ -82,6 +106,7 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
         // fetch next element by reading the size of current element and jumping to the
         // next one
         uint64_t u64s = read_u64s(c, u64s_spec) + u64s_spec.start;
+        // assert(u64s > 0 && "u64s should be greater than 0");
         c = (const uint8_t*)c + u64s * BCH_U64S_SIZE;
     }
 
@@ -93,8 +118,8 @@ const void *benz_bch_next_sibling(const void *p, uint32_t sizeof_p, const void *
     return c;
 }
 
-// Iterate through superblock field looking for a specific field type. If `type
-// == BCH_SB_FIELD_NR` then next field is returned
+// Iterate through superblock field looking for a specific field type. 
+// If `type == BCH_SB_FIELD_NR` then next field is returned
 const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const struct bch_sb_field *c, enum bch_sb_field_type type)
 {
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
@@ -105,8 +130,8 @@ const struct bch_sb_field *benz_bch_next_sb_field(const struct bch_sb *p, const 
     return c;
 }
 
-// Iterate through journal set entries looking for a specific field type. If
-// `type == BCH_JSET_ENTRY_NR` then next entry is returned
+// Iterate through journal set entries looking for a specific field type. 
+// If `type == BCH_JSET_ENTRY_NR` then next entry is returned
 const struct jset_entry *benz_bch_next_jset_entry(const struct bch_sb_field *p,
                                                   uint32_t sizeof_p,
                                                   const struct jset_entry *c,
@@ -151,6 +176,7 @@ const struct bch_val *benz_bch_next_bch_val(const struct bkey *p, const struct b
 // Fetch next valid bset
 const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_end, const struct bset *c, const struct bch_sb *sb)
 {
+    const struct bset * previous = c;
     uint64_t block_size = benz_bch_get_block_size(sb);
     do
     {
@@ -185,11 +211,12 @@ const struct bset *benz_bch_next_bset(const struct btree_node *p, const void *p_
             c = NULL;
         }
     } while (c && !c->u64s);
+
     return c;
 }
 
-// Iterate through bkeys inside a bset looking for a specific key type if `type
-// == KEY_TYPE_MAX` then next key is returned
+// Iterate through bkeys inside a bset looking for a specific key type 
+// if `type == KEY_TYPE_MAX` then next key is returned
 const struct bkey *benz_bch_next_bkey(const struct bset *p, const struct bkey *c, enum bch_bkey_type type)
 {
     const uint8_t *p_end = (const uint8_t*)p + p->u64s * BCH_U64S_SIZE;
@@ -412,15 +439,19 @@ int Bcachefs_close(Bcachefs *this)
 
 int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id type)
 {
+    DEBUG("new iterator for (btree_id: %d)", (int)type);
+    _depth += 1;
+
     iter->type = type;
     iter->btree_node = benz_bch_malloc_btree_node(this->sb);
     iter->jset_entry = Bcachefs_iter_next_jset_entry(this, iter);
     iter->btree_ptr = Bcachefs_iter_next_btree_ptr(this, iter);
-    if (iter->btree_ptr && !benz_bch_fread_btree_node(iter->btree_node,
-                                                      this->sb,
-                                                      iter->btree_ptr,
-                                                      this->fp))
+    iter->next_it = NULL;
+
+    uint64_t read = benz_bch_fread_btree_node(iter->btree_node, this->sb, iter->btree_ptr, this->fp);
+    if (iter->btree_ptr && !read)
     {
+        DEBUG("Failed to read btree node in memory read: %lu btree: %p", read, iter->btree_ptr);
         iter->btree_ptr = NULL;
     }
     return iter->jset_entry && iter->btree_node && iter->btree_ptr;
@@ -428,13 +459,25 @@ int Bcachefs_iter(const Bcachefs *this, Bcachefs_iterator *iter, enum btree_id t
 
 int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const struct bch_btree_ptr_v2 *btree_ptr)
 {
+    DEBUG("%s", "enter nested node");
+    _depth += 1;
+    assert(btree_ptr != NULL && "btree_ptr cannot be null");
     Bcachefs_iterator *next_it = malloc(sizeof(Bcachefs_iterator));
 
-    *next_it = (Bcachefs_iterator){
-        .type = iter->type,
-        .btree_node = benz_bch_malloc_btree_node(this->sb),
-        .btree_ptr = btree_ptr
-    };
+    // *next_it = (Bcachefs_iterator){
+    //     .type = iter->type,
+    //     .jset_entry = NULL,
+    //     .bset = NULL,
+    //     .bkey = NULL,
+    //     .bch_val = NULL,
+    //     .btree_node = benz_bch_malloc_btree_node(this->sb),
+    //     .btree_ptr = btree_ptr,
+    //     .next_it = NULL
+    // };
+
+    next_it->type = iter->type;
+    next_it->btree_node = benz_bch_malloc_btree_node(this->sb);
+    next_it->btree_ptr = btree_ptr;
 
     if (next_it->btree_ptr && !benz_bch_fread_btree_node(next_it->btree_node,
                                                          this->sb,
@@ -449,13 +492,14 @@ int Bcachefs_next_iter(const Bcachefs *this, Bcachefs_iterator *iter, const stru
         iter->next_it = next_it;
         return 1;
     }
-    else
-    {
-        Bcachefs_iter_fini(this, next_it);
-        free(next_it);
-        next_it = NULL;
-        return 0;
-    }
+
+    DEBUG("Failed to enter node btree_node: %p btree_ptr: %p", next_it->btree_node, next_it->btree_ptr);
+    Bcachefs_iter_fini(this, next_it);
+    free(next_it);
+    next_it = NULL;
+    _depth -= 1;
+    return 0;
+
 }
 
 int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter)
@@ -465,6 +509,10 @@ int Bcachefs_iter_fini(const Bcachefs *this, Bcachefs_iterator *iter)
     {
         return 1;
     }
+
+    _depth -= 1;
+    DEBUG("%s", "iterator fini");
+
     if (iter->next_it && Bcachefs_iter_fini(this, iter->next_it))
     {
         free(iter->next_it);
@@ -501,9 +549,8 @@ const struct bch_val *_Bcachefs_iter_next_bch_val(const struct bkey *bkey, const
     return benz_bch_first_bch_val(bkey, key_u64s);
 }
 
-const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter)
-{
-    const struct bkey *bkey = NULL;
+
+const struct bch_val* bch_val_from_nested_btree(const Bcachefs *this, Bcachefs_iterator *iter){
     const struct bch_val *bch_val = NULL;
 
     // Wind to current iterator
@@ -514,48 +561,65 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
         {
             return bch_val;
         }
-        else
-        {
-            Bcachefs_iter_fini(this, iter->next_it);
-            free(iter->next_it);
-            iter->next_it = NULL;
-        }
+
+        // Iterator finished, move
+        Bcachefs_iter_fini(this, iter->next_it);
+        free(iter->next_it);
+        iter->next_it = NULL;
     }
-    if (iter->bset == NULL && iter->btree_ptr)
-    {
-        iter->bset = Bcachefs_iter_next_bset(this, iter);
-    }
-    if (iter->btree_ptr && iter->bset) {}
-    else
-    {
+
+    return NULL;
+}
+
+const struct bch_val* bch_val_from_bset(const Bcachefs *this, Bcachefs_iterator *iter) {
+    const struct bch_val *bch_val = NULL;
+
+    // Finished iterating over the btree
+    if (iter->bset == NULL) {
         return NULL;
     }
+
+    // Iterate over the bset
+    const void* bset_end = Bcachefs_iter_bset_end(iter);
     do
     {
         iter->bkey = benz_bch_next_bkey(iter->bset, iter->bkey, KEY_TYPE_MAX);
         bch_val = _Bcachefs_iter_next_bch_val(iter->bkey, &iter->btree_node->format);
+
+        if (iter->bkey >= bset_end) {
+            DEBUG("%s", "End of bset");
+            return NULL;
+        }
+
+        DEBUG("get next key k: %p v: %p reached end: %d", iter->bkey, bch_val, iter->bkey > bset_end);
     } while (iter->bkey && bch_val == NULL);
-    bkey = iter->bkey;
+
+    return bch_val;
+}
+
+const struct bch_val *_Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter);
+
+const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter) {
+    const struct bch_val * bch_val = _Bcachefs_iter_next(this, iter);
+
+    if (!bch_val) {
+        return NULL;
+    }
+
+    // if key is a btree_ptr traverse the nested node
+    const struct bkey* bkey = iter->bkey;
     switch ((int)iter->type)
     {
     case BTREE_ID_extents:
-        iter->bch_val = bch_val;
-        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
-                Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
-        {
-            return Bcachefs_iter_next(this, iter);
-        }
-        else if (bch_val)
-        {
-            return bch_val;
-        }
-        break;
     case BTREE_ID_dirents:
         iter->bch_val = bch_val;
-        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2 &&
-                Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val))
+
+        if (bch_val && bkey->type == KEY_TYPE_btree_ptr_v2)
         {
-            return Bcachefs_iter_next(this, iter);
+            if (Bcachefs_next_iter(this, iter, (const struct bch_btree_ptr_v2*)bch_val)) {
+                return Bcachefs_iter_next(this, iter);
+            }
+            return NULL;
         }
         else if (bch_val)
         {
@@ -565,15 +629,37 @@ const struct bch_val *Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator
     default:
         return NULL;
     }
-    if (iter->bkey == NULL)
-    {
-        iter->bset = Bcachefs_iter_next_bset(this, iter);
+}
+
+const struct bch_val *_Bcachefs_iter_next(const Bcachefs *this, Bcachefs_iterator *iter)
+{
+    // Nested btree-node has keys
+    const struct bch_val *bval = bch_val_from_nested_btree(this, iter);
+    if (bval) {
+        return bval;
     }
-    if (iter->bset == NULL)
-    {
-        iter->btree_ptr = NULL;
+
+    // No nested node, get next values from current bset
+    bval = bch_val_from_bset(this, iter);
+    if (bval) {
+        // bset still has values
+        return bval;
     }
-    return Bcachefs_iter_next(this, iter);
+
+    // bval is none, bset is finished, get next
+    const struct bset* bset = Bcachefs_iter_next_bset(this, iter); 
+
+    if (bset) {
+        // found a new bset to iterate over
+        iter->bset = bset;
+        return Bcachefs_iter_next(this, iter);
+    }
+
+    iter->bset = NULL;
+    
+
+    // we have iterated over all the btree
+    return NULL;
 }
 
 const struct jset_entry *Bcachefs_iter_next_jset_entry(const Bcachefs *this, Bcachefs_iterator *iter)
@@ -619,12 +705,24 @@ const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this
     return btree_ptr;
 }
 
+const void * Bcachefs_iter_bset_end(Bcachefs_iterator *iter) {
+    return (const uint8_t*)iter->btree_node + iter->btree_ptr->sectors_written * BCH_SECTOR_SIZE;
+}
+
+struct BsetIterator {
+    const void* start;
+    const void* end;
+};
+
 const struct bset *Bcachefs_iter_next_bset(const Bcachefs *this, Bcachefs_iterator *iter)
 {
     const struct btree_node *btree_node = iter->btree_node;
-    const void *btree_node_end = (const uint8_t*)iter->btree_node + iter->btree_ptr->sectors_written * BCH_SECTOR_SIZE;
+    const void *btree_node_end = Bcachefs_iter_bset_end(iter);
     const struct bset *bset = iter->bset;
-    return benz_bch_next_bset(btree_node, btree_node_end, bset, this->sb);
+
+    const struct bset * n = benz_bch_next_bset(btree_node, btree_node_end, bset, this->sb);
+    DEBUG("next bset p: %p, s: %p, end: %p", bset, n, btree_node_end);
+    return n;
 }
 
 Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterator *iter)

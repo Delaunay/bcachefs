@@ -10,6 +10,8 @@
 
 int main()
 {
+    setbuf(stdout, NULL);
+    
     Bcachefs bchfs = {0};
     if (Bcachefs_open(&bchfs, LINKS)) {}
     else
