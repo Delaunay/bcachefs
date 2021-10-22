@@ -112,13 +112,14 @@ class _BcachefsFileBinary(io.BufferedIOBase):
 
         buffer = bytearray(n)
         view = memoryview(buffer)
-        return self.readinto(view)
+        self.readinto(view)
+        return bytes(buffer)
 
     def read1(self, size: int) -> bytes:
         """Read at most size bytes with at most one call to the underlying stream"""
         buffer = bytearray(size)
         size = self.readinto1(buffer)
-        return buffer[:size]
+        return bytes(buffer[:size])
 
     def readall(self) -> bytes:
         """Most efficient way to read a file, single allocation"""
@@ -137,7 +138,7 @@ class _BcachefsFileBinary(io.BufferedIOBase):
             self._file.seek(extent.offset)
             self._file.readinto(memory[s:e])
 
-        return buffer
+        return bytes(buffer)
 
     def readinto1(self, b: memoryview) -> int:
         """Read at most one extend
@@ -200,6 +201,8 @@ class _BcachefsFileBinary(io.BufferedIOBase):
         return True
 
     def seek(self, offset, whence=io.SEEK_SET):
+        raise io.UnsupportedOperation
+        
         if whence == io.SEEK_END:
             return self.seek(self._size + offset, io.SEEK_SET)
 
