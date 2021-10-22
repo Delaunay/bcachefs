@@ -1,69 +1,12 @@
-from bcachefs import Bcachefs
-
+from bcachefs.dataset import BcacheFSDataset
 from PIL import Image, ImageFile
-from torch.utils.data.dataset import Dataset
-
-
-class BcacheFSDataset(Dataset):
-    def __init__(self, path) -> None:
-        self.image = Bcachefs(path)
-        self.files = []
-        self._build_index()
-
-    def _build_index(self):
-        for name in self.image.namelist():
-            result = self.filter(name)
-
-            if result:
-                self.files.append(result)
-
-    def filter(self, name):
-        """Used to filter files inside the archives we are interested in
-        
-        Parameters
-        ----------
-        name: str
-            full path to a file in the archive
-        
-        Returns
-        -------
-        the data that will passed along to `load`
-
-        """
-        dirent = self.image.find_dirent(name)
-
-        if dirent.is_file:
-            return name
-        
-        return None
-
-    def load(self, name, *args):
-        """Load a sample"""
-        with self.image.open(name, 'r') as data:
-            return data.read()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.image.close()
-
-    def close(self):
-        self.image.close()
-
-    def __getitem__(self, index):
-        data = self.load(*self.files[index])
-        return data
-
-    def __len__(self):
-        return len(self.files)
 
 
 def pil_loader(file_object):
     img = Image.open(file_object, 'r')
     img = img.convert('RGB')
     return img
-
+ 
 
 class BCHImageNet(BcacheFSDataset):
     def __init__(self, path, transforms) -> None:
@@ -101,16 +44,12 @@ class BCHImageNet(BcacheFSDataset):
 if __name__ == '__main__':
     import os
 
-    this = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(this, ".."))
-
-    def filepath(path):
-        return os.path.join(project_root, path)
-        
-    MINI = "testdata/mini_bcachefs.img"
-
     from torch.utils.data import DataLoader
     from torchvision import transforms
+
+    from bcachefs.testing import filepath
+
+    MINI = "testdata/mini_bcachefs.img"
 
     preprocess = transforms.Compose([
         transforms.Resize(256),
