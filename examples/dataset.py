@@ -34,7 +34,6 @@ class BCHImageNet(BcacheFSDataset):
             return None
 
     def load(self, name, class_):
-        print(name)
         with self.image.open(name, 'r') as file:
             image = pil_loader(file)
 
