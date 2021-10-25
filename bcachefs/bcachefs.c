@@ -293,7 +293,7 @@ int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
     register uint32_t bi_flags;
     register uint64_t f;
     const uint8_t* e = (const uint8_t*)end;
-    const uint8_t* r = (const uint8_t*)&p->fields;
+    const uint8_t* r = (const uint8_t*)BCH_INODE_FIELDS(p);
 
     *bi_size = 0;/* Default is 0. */
     if(e<r)
@@ -441,7 +441,7 @@ uint64_t benz_bch_fread_sb(struct bch_sb *sb, uint64_t size, FILE *fp)
 
 uint64_t benz_bch_fread_btree_node(struct btree_node *btree_node, const struct bch_sb *sb, const struct bch_btree_ptr_v2 *btree_ptr, FILE *fp)
 {
-    uint64_t offset = benz_bch_get_extent_offset(btree_ptr->start);
+    uint64_t offset = benz_bch_get_extent_offset(BCH_BTREE_PTR_V2_START(btree_ptr));
     fseek(fp, (long)offset, SEEK_SET);
     memset(btree_node, 0, benz_bch_get_btree_node_size(sb));
     return fread(btree_node, btree_ptr->sectors_written * BCH_SECTOR_SIZE, 1, fp);
@@ -685,17 +685,17 @@ const struct bch_btree_ptr_v2 *Bcachefs_iter_next_btree_ptr(const Bcachefs *this
     const struct bch_btree_ptr_v2 *btree_ptr = iter->btree_ptr;
     if (btree_ptr)
     {
-        btree_ptr = (const void*)benz_bch_next_bch_val(&jset_entry->start->k,
+        btree_ptr = (const void*)benz_bch_next_bch_val(&JSET_ENTRY_START(jset_entry)->k,
                                                        (const void*)btree_ptr,
                                                        sizeof(struct bch_btree_ptr_v2));
     }
     else
     {
-        btree_ptr = (const void*)benz_bch_first_bch_val(&jset_entry->start->k, BKEY_U64s);
+        btree_ptr = (const void*)benz_bch_first_bch_val(&JSET_ENTRY_START(jset_entry)->k, BKEY_U64s);
     }
     const struct bch_val *bch_val = (const void*)btree_ptr;
-    for (; bch_val && btree_ptr->start->unused;
-         bch_val = benz_bch_next_bch_val(&jset_entry->start->k,
+    for (; bch_val && BCH_BTREE_PTR_V2_START(btree_ptr)->unused;
+         bch_val = benz_bch_next_bch_val(&JSET_ENTRY_START(jset_entry)->k,
                                          bch_val,
                                          sizeof(struct bch_btree_ptr_v2)),
          btree_ptr = (const void*)bch_val) {}
@@ -726,7 +726,7 @@ Bcachefs_extent Bcachefs_iter_make_extent(const Bcachefs *this, Bcachefs_iterato
     if (bkey->type == KEY_TYPE_inline_data)
     {
         extent.offset = benz_bch_inline_data_offset(iter->btree_node, iter->bch_val,
-                                                    benz_bch_get_extent_offset(iter->btree_ptr->start));
+                                                    benz_bch_get_extent_offset(BCH_BTREE_PTR_V2_START(iter->btree_ptr)));
         extent.size -= (uint64_t)((const uint8_t*)iter->bch_val - (const uint8_t*)iter->bkey);
     }
     return extent;

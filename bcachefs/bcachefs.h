@@ -236,7 +236,7 @@ struct bch_sb_layout {
 /* Optional/variable size superblock sections: */
 
 struct bch_sb_field {
-    uint64_t        _data[0];
+    // uint64_t        _data[0];
     uint32_t        u64s;
     uint32_t        type;
 };
@@ -284,10 +284,12 @@ struct bch_sb {
 
     struct bch_sb_layout    layout;
 
+    /*
     union {
         struct bch_sb_field start[0];
         uint64_t    _data[0];
     };
+    */
 } ATTRIBUTE(packed, aligned(8));
 
 /* Btree keys - all units are in sectors */
@@ -321,9 +323,16 @@ static inline struct bpos SPOS(uint64_t inode, uint64_t offset, uint32_t snapsho
 }
 
 /* Empty placeholder struct, for container_of() */
+
+#ifdef __linux__
 struct bch_val {
-    uint64_t        __nothing[0];
+    uint64_t        __nothing[];
 };
+#define BCH_VAL(v) struct bch_val #v
+#else
+#define BCH_VAL(v)
+#endif
+
 
 struct bkey_format {
     uint8_t     key_u64s;
@@ -400,7 +409,7 @@ struct bkey {
 } ATTRIBUTE(packed, aligned(8));
 
 struct bkey_packed {
-    uint64_t    _data[0];
+    // uint64_t    _data[0];
 
     /* Size of combined key and value, in u64s */
     uint8_t     u64s;
@@ -417,7 +426,7 @@ struct bkey_packed {
 
     /* Type of the value */
     uint8_t     type;
-    uint8_t     key_start[0];
+    // uint8_t     key_start[0];
 
     /*
      * We copy bkeys with struct assignment in various places, and while
@@ -430,7 +439,7 @@ struct bkey_packed {
 
 /* bkey with inline value */
 struct bkey_i {
-    uint64_t    _data[0];
+    // uint64_t    _data[0];
 
     union {
     struct {
@@ -439,7 +448,7 @@ struct bkey_i {
     };
     struct {
         struct bkey k;
-        struct bch_val  v;
+        BCH_VAL(v);
     };
     };
 };
@@ -455,11 +464,14 @@ struct jset_entry {
     uint8_t     type; /* designates what this jset holds */
     uint8_t     pad[3];
 
+    /*
     union {
         struct bkey_i   start[0];
         uint64_t    _data[0];
     };
+    */
 };
+#define JSET_ENTRY_START(x) ((struct bkey_i*)(x + sizeof(jset_entry)))
 
 struct bch_sb_field_clean {
     struct bch_sb_field field;
@@ -469,10 +481,11 @@ struct bch_sb_field_clean {
     uint16_t    _write_clock;
     uint64_t    journal_seq;
 
+    /*
     union {
         struct jset_entry start[0];
         uint64_t    _data[0];
-    };
+    };*/
 };
 
 /* Extents */
@@ -557,22 +570,24 @@ union bch_extent_entry {
 };
 
 struct bch_btree_ptr_v2 {
-    struct bch_val      v;
+    BCH_VAL(v);
 
     uint64_t    mem_ptr;
     uint64_t    seq;
     uint16_t    sectors_written;
     uint16_t    flags;
     struct bpos min_key;
-    struct bch_extent_ptr   start[0];
-    uint64_t    _data[0];
+    // struct bch_extent_ptr   start[0];
+    // uint64_t    _data[0];
 } ATTRIBUTE(packed, aligned(8));
+
+#define BCH_BTREE_PTR_V2_START(x) ((struct bch_extent_ptr*)(x + sizeof(struct bch_btree_ptr_v2)))
 
 struct bch_extent {
     struct bch_val      v;
 
-    union bch_extent_entry  start[0];
-    uint64_t    _data[0];
+    // union bch_extent_entry  start[0];
+    // uint64_t    _data[0];
 } ATTRIBUTE(packed, aligned(8));
 
 /* Inodes */
@@ -580,13 +595,15 @@ struct bch_extent {
 #define BCACHEFS_ROOT_INO   4096
 
 struct bch_inode {
-    struct bch_val      v;
+    BCH_VAL(v);
 
     uint64_t    bi_hash_seed;
     uint32_t    bi_flags;
     uint16_t    bi_mode;
-    uint8_t     fields[0];
+    // uint8_t     fields[0];
 } ATTRIBUTE(packed, aligned(8));
+
+#define BCH_INODE_FIELDS(x) ((uint8_t*)(x + sizeof(struct bch_inode)))
 
 /* Dirents */
 
@@ -602,7 +619,7 @@ struct bch_inode {
  */
 
 struct bch_dirent {
-    struct bch_val      v;
+    BCH_VAL(v);
 
     /* Target inode number: */
     uint64_t    d_inum;
@@ -619,8 +636,12 @@ struct bch_dirent {
 /* Inline data */
 
 struct bch_inline_data {
-    struct bch_val      v;
+    // BCH_VAL(v);
+#ifdef __linux__
     uint8_t     data[0];
+#else
+    uint8_t     data[8];
+#endif
 };
 
 /* Btree nodes */
@@ -647,10 +668,11 @@ struct bset {
     uint16_t    version;
     uint16_t    u64s; /* count of d[] in u64s */
 
+    /*
     union {
         struct bkey_packed start[0];
         uint64_t        _data[0];
-    };
+    };*/
 } ATTRIBUTE(packed, aligned(8));
 
 struct btree_node {
@@ -685,11 +707,11 @@ struct btree_node_entry {
     struct {
         uint8_t     pad[22];
         uint16_t    u64s;
-        uint64_t    _data[0];
+       // uint64_t    _data[0];
 
     };
     };
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 static inline uint64_t __bch2_sb_magic(struct bch_sb *sb)
 {
