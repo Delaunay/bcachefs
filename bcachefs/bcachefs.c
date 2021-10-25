@@ -262,8 +262,10 @@ struct bkey_local benz_bch_parse_bkey(const struct bkey *bkey, const struct bkey
     return ret;
 }
 
+#ifdef __linux__
 #pragma GCC push_options
 #pragma GCC optimize ("O2")
+#endif
 
 static uint32_t benz_getle32(const void* p, int64_t off){
     uint32_t x;
@@ -341,7 +343,10 @@ int   benz_bch_inode_unpack_size(uint64_t*               bi_size,
 
     return 0;
 }
+
+#ifdef __linux__
 #pragma GCC pop_options
+#endif
 
 inline uint64_t benz_bch_get_block_size(const struct bch_sb *sb)
 {

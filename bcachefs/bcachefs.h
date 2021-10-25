@@ -17,14 +17,21 @@ extern "C" {
 
 /* Defines */
 
+#ifdef __linux__
 typedef signed char int8_t;
 typedef signed short int16_t;
 typedef signed int int32_t;
-typedef __int64_t int64_t;
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
+typedef __int64_t int64_t;
 typedef __uint64_t uint64_t;
+#define ATTRIBUTE(a, b) __attribute__((a, b))
+#else
+#include <stdint.h>
+#define ATTRIBUTE(a, b)
+#endif
+
 
 #define BCH_SB_SECTOR           8
 #define BCH_SB_LABEL_SIZE       32
@@ -209,13 +216,13 @@ static const struct u64s_spec U64S_BKEY = {
 
 struct uuid {
     uint8_t         bytes[16];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* 128 bits, sufficient for cryptographic MACs: */
 struct bch_csum {
     uint64_t        lo;
     uint64_t        hi;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bch_sb_layout {
     struct uuid     magic;  /* bcachefs superblock UUID */
@@ -224,7 +231,7 @@ struct bch_sb_layout {
     uint8_t         nr_superblocks;
     uint8_t         pad[5];
     uint64_t        sb_offset[61];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* Optional/variable size superblock sections: */
 
@@ -281,14 +288,14 @@ struct bch_sb {
         struct bch_sb_field start[0];
         uint64_t    _data[0];
     };
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* Btree keys - all units are in sectors */
 
 struct bversion {
     uint32_t        hi;
     uint64_t        lo;
-} __attribute__((packed, aligned(4)));
+} ATTRIBUTE(packed, aligned(4));
 
 struct bpos {
     /*
@@ -302,7 +309,7 @@ struct bpos {
     uint32_t        snapshot;
     uint64_t        offset;     /* Points to end of extent - sectors */
     uint64_t        inode;
-} __attribute__((packed, aligned(4)));
+} ATTRIBUTE(packed, aligned(4));
 
 static inline struct bpos SPOS(uint64_t inode, uint64_t offset, uint32_t snapshot)
 {
@@ -352,7 +359,7 @@ struct bkey_short {
 //    struct bversion version;
 //    uint32_t    size;       /* extent size, in sectors */
     struct bpos p;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bkey_local {
     /* Size of combined key and value, in u64s */
@@ -372,7 +379,7 @@ struct bkey_local {
     struct bpos p;
 
     uint8_t     key_u64s;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bkey {
     /* Size of combined key and value, in u64s */
@@ -390,7 +397,7 @@ struct bkey {
     struct bversion version;
     uint32_t    size;       /* extent size, in sectors */
     struct bpos p;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bkey_packed {
     uint64_t    _data[0];
@@ -419,7 +426,7 @@ struct bkey_packed {
      * to the same size as struct bkey should hopefully be safest.
      */
     uint8_t     pad[sizeof(struct bkey) - 3];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* bkey with inline value */
 struct bkey_i {
@@ -480,7 +487,7 @@ struct bch_extent_crc32 {
                 csum_type:4,
                 compression_type:4;
     uint32_t    csum;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 #define CRC32_SIZE_MAX      (1U << 7)
 #define CRC32_NONCE_MAX     0
@@ -495,7 +502,7 @@ struct bch_extent_crc64 {
                 compression_type:4,
                 csum_hi:16;
     uint64_t    csum_lo;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 #define CRC64_SIZE_MAX      (1U << 9)
 #define CRC64_NONCE_MAX     ((1U << 10) - 1)
@@ -509,7 +516,7 @@ struct bch_extent_crc128 {
                 csum_type:4,
                 compression_type:4;
     struct bch_csum     csum;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 #define CRC128_SIZE_MAX     (1U << 13)
 #define CRC128_NONCE_MAX    ((1U << 13) - 1)
@@ -525,7 +532,7 @@ struct bch_extent_ptr {
                 offset:44, /* 8 petabytes */
                 dev:8,
                 gen:8;
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bch_extent_stripe_ptr {
     uint64_t    type:5,
@@ -559,14 +566,14 @@ struct bch_btree_ptr_v2 {
     struct bpos min_key;
     struct bch_extent_ptr   start[0];
     uint64_t    _data[0];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct bch_extent {
     struct bch_val      v;
 
     union bch_extent_entry  start[0];
     uint64_t    _data[0];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* Inodes */
 
@@ -579,7 +586,7 @@ struct bch_inode {
     uint32_t    bi_flags;
     uint16_t    bi_mode;
     uint8_t     fields[0];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* Dirents */
 
@@ -607,7 +614,7 @@ struct bch_dirent {
     uint8_t     d_type;
 
     uint8_t     d_name[];
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 /* Inline data */
 
@@ -644,7 +651,7 @@ struct bset {
         struct bkey_packed start[0];
         uint64_t        _data[0];
     };
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct btree_node {
     struct bch_csum     csum;
@@ -668,7 +675,7 @@ struct btree_node {
 
     };
     };
-} __attribute__((packed, aligned(8)));
+} ATTRIBUTE(packed, aligned(8));
 
 struct btree_node_entry {
     struct bch_csum     csum;
